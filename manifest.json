@@ -1,23 +1,15 @@
 {
-  "name": "BauLeiter – Digitales Baugedächtnis",
+  "name": "BauLeiter Tool",
   "short_name": "BauLeiter",
-  "description": "Bauleitungs-Tool für PV, BESS und Wind-Projekte",
-  "start_url": "./bauleiter-tool.html",
-  "scope": "./",
+  "description": "Baustellenmanagement für PV, BESS und Wind",
+  "start_url": "./index.html",
   "display": "standalone",
-  "orientation": "any",
   "background_color": "#fafafa",
   "theme_color": "#e5007d",
-  "lang": "de",
+  "orientation": "any",
   "icons": [
     {
-      "src": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='34' fill='%23e5007d'/><text x='96' y='130' font-size='110' text-anchor='middle' fill='white' font-family='system-ui,sans-serif' font-weight='bold'>BL</text></svg>",
-      "sizes": "192x192",
-      "type": "image/svg+xml",
-      "purpose": "any"
-    },
-    {
-      "src": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='90' fill='%23e5007d'/><text x='256' y='350' font-size='290' text-anchor='middle' fill='white' font-family='system-ui,sans-serif' font-weight='bold'>BL</text></svg>",
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='18' fill='%23e5007d'/%3E%3Ctext x='50' y='68' font-size='58' text-anchor='middle' fill='white' font-family='system-ui' font-weight='bold'%3EBL%3C/text%3E%3C/svg%3E",
       "sizes": "512x512",
       "type": "image/svg+xml",
       "purpose": "any maskable"
