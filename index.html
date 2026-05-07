@@ -168,10 +168,10 @@
   .checklist-item{display:flex;align-items:center;gap:8px;padding:6px;border-bottom:1px solid var(--border)}
   .checklist-item input[type=checkbox]{width:auto;margin:0}
   .checklist-item.done span{text-decoration:line-through;color:var(--muted)}
-  .level-1{padding-left:0}
-  .level-2{padding-left:20px}
-  .level-3{padding-left:40px}
-  .level-4{padding-left:60px}
+  .level-1{padding-left:12px}
+  .level-2{padding-left:32px}
+  .level-3{padding-left:52px}
+  .level-4{padding-left:72px}
 
   /* ===== BAUTAGEBUCH MOBILE ===== */
   @media (max-width: 768px) {
@@ -308,7 +308,6 @@
     <button class="nav-btn" data-view="fristenkalender">📅 <span>Kontrollcenter</span></button>
     <button class="nav-btn active" data-view="dashboard">📊 <span>Projekte</span></button>
     <button class="nav-btn" data-view="protokolle">📊 <span>Reporting</span></button>
-    <button class="nav-btn" data-view="kontakte">👥 <span>Kontakte</span></button>
     <div style="margin:8px 12px 4px;border-top:1px solid var(--border)"></div>
     <div style="padding:4px 12px 6px">
       <select id="projectSelect"
@@ -322,6 +321,10 @@
     <button class="nav-btn" data-view="bauzeitplan">📅 <span>Bauzeitplan</span></button>
     <button class="nav-btn" data-view="pruefungen">📄 <span>Vertrag / Rechnungen</span></button>
     <button class="nav-btn" data-view="bautagebuch">📔 <span>Baubegehungen</span></button>
+    <div style="margin:8px 12px 4px;border-top:1px solid var(--border)"></div>
+    <button class="nav-btn" data-view="kontakte">👥 <span>Kontakte</span></button>
+    <button class="nav-btn" data-view="wiki">📚 <span>Wiki</span></button>
+    <button class="nav-btn" data-view="tools">🛠️ <span>Tools</span></button>
     <div class="nav-spacer"></div>
     <div class="nav-bottom">
       <button class="nav-btn" data-view="hilfe">💡 <span>Hilfe</span></button>
@@ -345,6 +348,9 @@ if('serviceWorker' in navigator){
     .catch(err => console.log('SW registration failed:', err));
 }
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="modules/types.js"></script>
 <script src="modules/shared.js"></script>
 <script src="modules/dashboard.js"></script>
 <script src="modules/projekte.js"></script>
@@ -352,16 +358,21 @@ if('serviceWorker' in navigator){
 <script src="modules/fristenkalender.js"></script>
 <script src="modules/bautagebuch.js"></script>
 <script src="modules/kontakte.js"></script>
-<script src="modules/reporting.js"></script>
+<script src="modules/reporting.js?v=11"></script>
 <script src="modules/kostenschaetzung.js"></script>
+<script src="modules/bauzeitplan.js"></script>
+<script src="modules/gruppenkatalog.js"></script>
 <script src="modules/pruefungen.js"></script>
 <script src="modules/genehmigungen.js"></script>
 <script src="modules/einstellungen.js"></script>
+<script src="modules/wiki.js?v=1"></script>
+<script src="modules/tools.js?v=1"></script>
 <script>
 (async function(){
   await loadAll();
   applyTheme(state.settings?.theme || 'dark');
   applyHeaderMin();
+  initEventDelegation();
   if(/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)){
     currentView = 'bautagebuch';
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view==='bautagebuch'));

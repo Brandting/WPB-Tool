@@ -1,7 +1,11 @@
 // ============ GENEHMIGUNGEN ============
-let genehmTab = 'anlage';
-let genehmSubView = null; // null | 'vorpruefung'
-let activeInlineNB = null; // null | {parentType, parentId, nbId}
+const VALID_GENEHM_TABS = ['anlage','kabeltrasse','wegebau','nutzungsvertraege'];
+let genehmTab = (() => {
+  const stored = sessionStorage.getItem('genehmTab');
+  return VALID_GENEHM_TABS.includes(stored) ? stored : 'anlage';
+})();
+let genehmSubView = null;
+let activeInlineNB = null;
 
 const GENEHM_STATUS = {
   ausstehend:      {label:'Ausstehend',      color:'var(--red)'},
@@ -144,7 +148,7 @@ function renderGenehmigungen(){
   `;
 }
 
-function setGenehmTab(tab){ genehmTab=tab; genehmSubView=null; activeInlineNB=null; render(); }
+function setGenehmTab(tab){ if(!VALID_GENEHM_TABS.includes(tab)) tab='anlage'; genehmTab=tab; sessionStorage.setItem('genehmTab',tab); genehmSubView=null; activeInlineNB=null; render(); }
 
 async function toggleVorpruefung(){
   if(!state.settings) state.settings={};
@@ -220,7 +224,8 @@ function addVPItem(){
   render();
 }
 async function deleteVPItem(id){
-  if(!confirm('Prüfpunkt löschen?')) return;
+  const v=(state.genehmVorpruefung||[]).find(x=>x.id===id);
+  if(!confirm(`Prüfpunkt „${v?.label||'?'}" löschen?`)) return;
   state.genehmVorpruefung=(state.genehmVorpruefung||[]).filter(v=>v.id!==id);
   await save('genehmVorpruefung');
   render();
@@ -767,7 +772,8 @@ async function saveGenehmigung(ev,id,exists){
   await save('genehmigungen'); closeModal(); render();
 }
 async function deleteGenehmigung(id){
-  if(!confirm('Genehmigung wirklich löschen?')) return;
+  const g=(state.genehmigungen||[]).find(x=>x.id===id);
+  if(!confirm(`Genehmigung „${g?.bezeichnung||g?.typ||'?'}" wirklich löschen?`)) return;
   state.genehmigungen=(state.genehmigungen||[]).filter(g=>g.id!==id);
   await save('genehmigungen'); closeModal(); render();
 }
@@ -815,7 +821,8 @@ async function saveGutachten(ev,id,exists){
   await save('genehmigungen'); closeModal(); render();
 }
 async function deleteGutachten(id){
-  if(!confirm('Gutachten wirklich löschen?')) return;
+  const g=(state.genehmigungen||[]).find(x=>x.id===id);
+  if(!confirm(`Gutachten „${g?.bezeichnung||g?.typ||'?'}" wirklich löschen?`)) return;
   state.genehmigungen=(state.genehmigungen||[]).filter(g=>g.id!==id);
   await save('genehmigungen'); closeModal(); render();
 }
@@ -866,7 +873,8 @@ async function saveQuerung(ev,id,exists){
   await save('querungen'); closeModal(); render();
 }
 async function deleteQuerung(id){
-  if(!confirm('Querung wirklich löschen?')) return;
+  const q=(state.querungen||[]).find(x=>x.id===id);
+  if(!confirm(`Querung „${q?.bezeichnung||q?.typ||'?'}" wirklich löschen?`)) return;
   state.querungen=(state.querungen||[]).filter(q=>q.id!==id);
   await save('querungen'); closeModal(); render();
 }
@@ -925,7 +933,8 @@ async function saveNutzungsvertrag(ev,id,exists){
   await save('nutzungsvertraege'); closeModal(); render();
 }
 async function deleteNutzungsvertrag(id){
-  if(!confirm('Nutzungsvertrag wirklich löschen?')) return;
+  const n=(state.nutzungsvertraege||[]).find(x=>x.id===id);
+  if(!confirm(`Nutzungsvertrag „${n?.bezeichnung||'?'}" wirklich löschen?`)) return;
   state.nutzungsvertraege=(state.nutzungsvertraege||[]).filter(n=>n.id!==id);
   await save('nutzungsvertraege'); closeModal(); render();
 }
@@ -1065,3 +1074,4 @@ window.nbToAufgabe            = nbToAufgabe;
 window.nbRemoveAufgabe        = nbRemoveAufgabe;
 window.nbToKalender           = nbToKalender;
 window.nbRemoveKalender       = nbRemoveKalender;
+window.resetGenehmTab = function(){ genehmTab='anlage'; sessionStorage.setItem('genehmTab','anlage'); genehmSubView=null; activeInlineNB=null; };

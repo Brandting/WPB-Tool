@@ -20,7 +20,7 @@ function renderProjekte(){
       <h2>Projekte</h2>
       <button class="btn" onclick="editProject()">+ Neues Projekt</button>
     </div>
-    ${state.projects.length===0?'<div class="card empty"><span class="empty-icon">📁</span>Noch kein Projekt angelegt.</div>':
+    ${state.projects.length===0?emptyState('📁','Noch kein Projekt angelegt.'):
     `<table><thead><tr>
       <th>Name</th><th>Bauherr</th><th>Start</th><th>Ende</th><th>Status</th>
       <th>Vollständigkeit</th><th></th>
@@ -30,13 +30,13 @@ function renderProjekte(){
       <td>${esc(p.client||'—')}</td>
       <td>${fmtDate(p.start)}</td>
       <td>${fmtDate(p.end)}</td>
-      <td><span class="badge ${p.status||'bearbeitung'}">${p.status||'aktiv'}</span></td>
+      <td>${badge(p.status||'aktiv',p.status||'bearbeitung')}</td>
       <td style="min-width:200px;line-height:1.9">${completionDots(p)}</td>
-      <td class="actions-cell">
-        <button class="btn btn-sm btn-secondary" onclick="currentProjectDetailId='${p.id}';render()" title="Projektdetails">📋</button>
-        <button class="btn btn-sm btn-secondary" onclick="editProject('${p.id}')">✏️</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteProject('${p.id}')">🗑️</button>
-      </td>
+      <td class="actions-cell">${actionButtons(p.id,{
+        edit:'editProject',
+        del:'deleteProject',
+        extra:`<button class="btn btn-sm btn-secondary" onclick="currentProjectDetailId='${p.id}';render()" title="Projektdetails">📋</button>`
+      })}</td>
     </tr>`).join('')}
     </tbody></table>`}
   `;
@@ -53,7 +53,7 @@ function renderProjektDetail(){
     <div class="page-header">
       <div>
         <h2 style="display:inline-block">${esc(p.name)}</h2>
-        <span class="badge ${p.status||'bearbeitung'}" style="margin-left:8px">${p.status||'aktiv'}</span>
+        ${badge(p.status||'aktiv',p.status||'bearbeitung','margin-left:8px')}
       </div>
       <button class="btn btn-secondary" onclick="editProject('${p.id}')">✏️ Stammdaten bearbeiten</button>
     </div>
@@ -784,14 +784,15 @@ async function saveProject(e,id,exists){
     state.projects=state.projects.map(p=>p.id===id?{...p,...data}:p);
   } else {
     state.projects.push({...data, params:{}, timeline:{}});
-    if(!state.currentProject){state.currentProject=id; await save('currentProject');}
+    if(!state.currentProject){ switchProject(id); }
   }
   await save('projects'); closeModal(); render();
 }
 async function deleteProject(id){
-  if(!confirm('Projekt wirklich löschen? Zugehörige Aufgaben & Einträge bleiben erhalten.')) return;
+  const p=state.projects.find(x=>x.id===id);
+  if(!confirm(`Projekt „${p?.name||'?'}" wirklich löschen?\nZugehörige Aufgaben & Einträge bleiben erhalten.`)) return;
   state.projects = state.projects.filter(p=>p.id!==id);
-  if(state.currentProject===id){state.currentProject=null;await save('currentProject');}
+  if(state.currentProject===id){ switchProject(null); }
   await save('projects');
   render();
 }

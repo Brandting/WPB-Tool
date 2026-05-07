@@ -14,12 +14,32 @@ let state = {
   pruefungen: [],
   schedule: [],
   kalenderEntries: [],
-  settings: {theme:'enercity'},
+  settings: {
+    theme: 'enercity',
+    headerMinimized: false,
+    vpHidden: false,
+    trackerEmail: '',
+    trackerEmailSubject: 'Projekt Tracker Report',
+    trackerEmailBody: '',
+    trackerSaveDirName: '',
+    backupDirName: '',
+    backupInterval: 30,
+    lastBackup: null,
+    kalTypeColors: {},
+    companyName: '',
+    companyAddress: '',
+    companyLogo: null,
+  },
   hilfeNotes: '',
   genehmigungen: [],
   querungen: [],
   nutzungsvertraege: [],
   genehmVorpruefung: [],
+  projektTracker: [],
+  trackerGroups: [],
+  estTemplates: null,
+  bfbReports: [],
+  wikiArticles: [],
 };
 let currentCalcId = null;
 let currentEstimateId = null;
@@ -30,7 +50,6 @@ let globalQuantile = 0.5;
 let kalcShowPreise = false;
 let reminderInterval = null;
 let currentView = 'dashboard';
-let previousView = 'dashboard';
 
 // ============ CONSTANTS ============
 const DOC_TEMPLATES = {
@@ -133,9 +152,11 @@ function docCompletionPct(p){
 }
 
 function projAmpel(p){
-  // Dokumente
-  const docPct=docCompletionPct(p);
-  const docColor=docPct>=80?'var(--green)':docPct>=50?'var(--yellow)':'var(--red)';
+  // Genehmigungsvorprüfung
+  const vp=(state.genehmVorpruefung||[]).filter(v=>v.projektId===p.id);
+  const vpDone=vp.filter(v=>v.status==='vorhanden'||v.status==='nicht_relevant').length;
+  const vpPct=vp.length?Math.round(vpDone/vp.length*100):null;
+  const vpColor=vpPct===null?'var(--muted)':vpPct>=80?'var(--green)':vpPct>=50?'var(--yellow)':'var(--red)';
   // Zeit
   const now=new Date(); now.setHours(0,0,0,0);
   const tl=p.timeline||{};
@@ -148,12 +169,18 @@ function projAmpel(p){
   // Schätzung
   const ests=state.estimates.filter(e=>e.projectId===p.id);
   const budget=ests.length?fmtEur(Math.max(...ests.map(e=>estTotal(e)))):'—';
-  return {docPct,docColor,zeitColor,zeitLabel,budget};
+  return {vpPct,vpColor,zeitColor,zeitLabel,budget};
 }
 
 
 const STORAGE_PREFIX = 'bauleiter:';
-const STORAGE_KEYS = ['projects','contacts','tasks','diary','protocols','priceItems','calculations','estimates','schaetzungVorlagen','schaetzungGruppenVorlagen','pruefungen','schedule','kalenderEntries','settings','hilfeNotes','currentProject','genehmigungen','querungen','nutzungsvertraege','genehmVorpruefung'];
+const STORAGE_KEYS = ['projects','contacts','tasks','diary','protocols','priceItems','calculations','estimates','schaetzungVorlagen','schaetzungGruppenVorlagen','pruefungen','schedule','kalenderEntries','settings','hilfeNotes','currentProject','genehmigungen','querungen','nutzungsvertraege','genehmVorpruefung','projektTracker','trackerGroups','estTemplates','bfbReports','wikiArticles'];
+
+// Helper: liefert benutzerdefinierte Template-Override oder Default aus EST_TEMPLATES.
+// Erlaubt künftiges Customizing pro Projekttyp ohne harte Code-Änderungen.
+function estTemplate(type){
+  return (state.estTemplates && state.estTemplates[type]) || (typeof EST_TEMPLATES!=='undefined' ? EST_TEMPLATES[type] : null);
+}
 const DB_NAME = 'bauleiter-db';
 const DB_STORE = 'kv';
 const DB_VERSION = 1;
@@ -248,6 +275,59 @@ const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7
 const fmtDate = d => d ? new Date(d).toLocaleDateString('de-DE') : '';
 const today = () => new Date().toISOString().slice(0,10);
 const esc = s => String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const badge = (text, cls, style='') => `<span class="badge ${cls||''}"${style?` style="${style}"`:''}>${esc(text)}</span>`;
+
+// Standard-Action-Buttons (Edit / Delete) — verwendet in fast jeder Tabellen-Zeile.
+// Nutzt Event-Delegation via data-attributes statt inline-onclick:
+// Vorteile: Kein String-Interpolations-Risiko mit Quotes in IDs, sauberes HTML,
+// XSS-sicher (data-id wird HTML-attribute-escaped).
+// Der zentrale Listener wird in initEventDelegation() registriert.
+function actionButtons(id, {edit, del, extra=''} = {}){
+  const safeId = esc(id);
+  const editBtn = edit ? `<button class="btn btn-sm btn-secondary" data-action="${esc(edit)}" data-id="${safeId}" title="Bearbeiten">✏️</button>` : '';
+  const delBtn  = del  ? `<button class="btn btn-sm btn-danger"    data-action="${esc(del)}"  data-id="${safeId}" title="Löschen">🗑️</button>` : '';
+  return `${extra}${editBtn}${delBtn}`;
+}
+
+// Zentraler Click-Listener für [data-action]-Buttons.
+// Wird einmal beim App-Start registriert. Buttons brauchen kein eigenes onclick mehr —
+// einfach `<button data-action="editTask" data-id="abc">` rendern und der Listener
+// ruft window.editTask('abc') auf.
+function initEventDelegation(){
+  if(window._eventDelegationActive) return;
+  window._eventDelegationActive = true;
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action]');
+    if(!btn) return;
+    const action = btn.dataset.action;
+    const id = btn.dataset.id;
+    const fn = window[action];
+    if(typeof fn === 'function'){
+      fn(id);
+    } else {
+      console.warn('[EventDelegation] Unknown action:', action);
+    }
+  });
+}
+
+// Empty-State-Card — z.B. wenn eine Liste leer ist.
+function emptyState(icon, message){
+  return `<div class="card empty"><span class="empty-icon">${icon}</span>${esc(message)}</div>`;
+}
+
+// Page-Header mit optionalem Action-Button.
+function pageHeader(title, action=null){
+  return `<div class="page-header">
+    <h2>${esc(title)}</h2>
+    ${action ? `<div style="display:flex;gap:8px">${action}</div>` : ''}
+  </div>`;
+}
+
+let _debounceTimers = {};
+function debounce(key, fn, ms=200){
+  clearTimeout(_debounceTimers[key]);
+  _debounceTimers[key] = setTimeout(fn, ms);
+}
 
 function projectTasks(){
   return state.tasks.filter(t => !state.currentProject || t.projectId === state.currentProject);
@@ -270,7 +350,6 @@ function closeModal(){
 
 // ============ NAVIGATION ============
 window.showView = function showView(view){
-  if(currentView !== 'gruppenKatalog') previousView = currentView;
   currentView = view;
   if(view !== 'schaetzung' && view !== 'gruppenKatalog'){ currentEstimateId = null; currentEstimatePart = null; kalcShowPreise = false; }
   if(view !== 'projekte' && view !== 'projektdetail'){ currentProjectDetailId = null; }
@@ -282,6 +361,12 @@ window.showView = function showView(view){
 window.switchProject = function switchProject(id){
   state.currentProject = id || null;
   save('currentProject');
+  if(window.resetTaskFilter)    window.resetTaskFilter();
+  if(window.resetKalender)      window.resetKalender();
+  if(window.resetGenehmTab)     window.resetGenehmTab();
+  if(window.resetPriceFilter)   window.resetPriceFilter();
+  if(window.resetKontaktFilter)      window.resetKontaktFilter();
+  if(window.resetTrackerGroupFilter) window.resetTrackerGroupFilter();
   render();
 }
 window.refreshProjectSelect = function refreshProjectSelect(){
@@ -315,6 +400,8 @@ function render(){
     case 'hilfe': m.innerHTML = renderHilfe(); break;
     case 'einstellungen': m.innerHTML = renderEinstellungen(); break;
     case 'admin': m.innerHTML = renderAdmin(); break;
+    case 'wiki': m.innerHTML = renderWiki(); break;
+    case 'tools': m.innerHTML = renderTools(); break;
   }
 }
 
@@ -345,6 +432,8 @@ function initNavigationListeners(){
 }
 
 // ============ GLOBALE EXPORTS ============
+window.debounce = debounce;
+window.estTemplate = estTemplate;
 window.state = state;
 window.currentCalcId = currentCalcId;
 window.currentEstimateId = currentEstimateId;
@@ -355,4 +444,3 @@ window.globalQuantile = globalQuantile;
 window.kalcShowPreise = kalcShowPreise;
 window.reminderInterval = reminderInterval;
 window.currentView = currentView;
-window.previousView = previousView;

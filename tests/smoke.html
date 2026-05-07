@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>BauLeiter Smoke-Tests</title>
+<style>
+  body{font-family:'Segoe UI',sans-serif;background:#111;color:#eee;padding:24px;max-width:900px;margin:0 auto}
+  h1{color:#e5007d;margin:0 0 16px}
+  .summary{padding:14px 18px;border-radius:8px;margin-bottom:18px;font-size:16px;font-weight:600}
+  .summary.pass{background:#0a3a1a;color:#3ecf6e;border:1px solid #1d5e34}
+  .summary.fail{background:#3a0a14;color:#ff5168;border:1px solid #5e1d28}
+  .test{padding:8px 12px;border-radius:6px;margin-bottom:4px;font-family:Consolas,monospace;font-size:13px;display:flex;gap:10px;align-items:flex-start}
+  .test.pass{background:#0f1f15}
+  .test.fail{background:#2a1015;border-left:3px solid #ff5168}
+  .test .icon{flex:0 0 20px}
+  .test .name{flex:1}
+  .test .err{color:#ff8a99;margin-top:4px;white-space:pre-wrap;font-size:12px}
+  .group{margin-top:18px;padding-top:8px;border-top:1px solid #2e1520}
+  .group h2{color:#b07090;font-size:13px;text-transform:uppercase;letter-spacing:.5px;margin:0 0 8px}
+  #hidden-app{display:none}
+  button{background:#e5007d;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:14px;margin-right:8px}
+  button:hover{background:#b8005e}
+</style>
+</head>
+<body>
+<h1>🧪 BauLeiter Smoke-Tests</h1>
+<p style="color:#b07090;font-size:13px">
+  Lädt die App-Module in einem Test-Sandbox. IndexedDB-Schreibvorgänge werden gemockt
+  damit keine echten Daten verändert werden.
+</p>
+<div>
+  <button onclick="runAll()">▶ Tests laufen lassen</button>
+  <button onclick="location.reload()">🔄 Reload</button>
+</div>
+<div id="summary" class="summary" style="display:none"></div>
+<div id="results"></div>
+
+<!-- Hidden App-DOM für Tests die Render brauchen -->
+<div id="hidden-app">
+  <header><h1>Test</h1><div class="project-bar"><select id="projectSelect"></select></div></header>
+  <nav></nav>
+  <main id="main"></main>
+  <div id="modalBg"><div id="modal"></div></div>
+</div>
+
+<script>
+// ============================================================================
+// Mini-Test-Framework
+// ============================================================================
+const tests = [];
+function test(name, fn){ tests.push({name, fn}); }
+function group(name, fn){
+  tests.push({group:name});
+  fn();
+}
+function assert(cond, msg){
+  if(!cond) throw new Error(msg || 'Assertion failed');
+}
+function assertEq(actual, expected, msg){
+  if(actual !== expected){
+    throw new Error((msg||'Expected equality') + `\n  expected: ${JSON.stringify(expected)}\n  actual:   ${JSON.stringify(actual)}`);
+  }
+}
+function assertType(value, type, msg){
+  if(typeof value !== type) throw new Error((msg||'Wrong type') + `\n  expected: ${type}\n  actual:   ${typeof value}`);
+}
+function assertArr(value, msg){
+  if(!Array.isArray(value)) throw new Error((msg||'Expected array') + `\n  actual: ${typeof value}`);
+}
+
+async function runAll(){
+  const results = document.getElementById('results');
+  const summary = document.getElementById('summary');
+  results.innerHTML = '';
+  summary.style.display = 'none';
+  let pass = 0, fail = 0;
+  let currentGroup = null;
+  for(const t of tests){
+    if(t.group){
+      const div = document.createElement('div');
+      div.className = 'group';
+      div.innerHTML = `<h2>${t.group}</h2>`;
+      results.appendChild(div);
+      currentGroup = div;
+      continue;
+    }
+    const row = document.createElement('div');
+    row.className = 'test';
+    try {
+      await t.fn();
+      row.classList.add('pass');
+      row.innerHTML = `<span class="icon">✓</span><span class="name">${t.name}</span>`;
+      pass++;
+    } catch(err){
+      row.classList.add('fail');
+      row.innerHTML = `<span class="icon">✗</span><span class="name">${t.name}<div class="err">${err.message||err}</div></span>`;
+      fail++;
+    }
+    (currentGroup || results).appendChild(row);
+  }
+  summary.style.display = 'block';
+  summary.className = 'summary ' + (fail === 0 ? 'pass' : 'fail');
+  summary.textContent = fail === 0
+    ? `✓ Alle ${pass} Tests bestanden`
+    : `✗ ${fail} fehlgeschlagen, ${pass} bestanden`;
+}
+
+// ============================================================================
+// Mock IndexedDB so saves don't pollute real data
+// ============================================================================
+const _testDB = {};
+window._mockedDB = true;
+
+// ============================================================================
+// Test-Definitions
+// ============================================================================
+
+group('🔧 Setup & Globals', () => {
+  test('state object existiert und hat alle Top-Level-Keys', () => {
+    assert(window.state, 'state nicht definiert');
+    const required = ['projects','tasks','contacts','diary','protocols','priceItems',
+      'calculations','estimates','pruefungen','schedule','kalenderEntries','settings',
+      'genehmigungen','querungen','nutzungsvertraege','genehmVorpruefung','projektTracker'];
+    for(const k of required){
+      assert(k in state, `state.${k} fehlt`);
+    }
+  });
+
+  test('Utility-Funktionen sind global verfügbar', () => {
+    // const-deklarierte Funktionen sind NICHT auf window (nur function declarations).
+    // typeof reicht aus, um Existenz im globalen lexikalischen Scope zu prüfen.
+    assertEq(typeof uid, 'function', 'uid');
+    assertEq(typeof fmtDate, 'function', 'fmtDate');
+    assertEq(typeof esc, 'function', 'esc');
+    assertEq(typeof badge, 'function', 'badge');
+    assertEq(typeof actionButtons, 'function', 'actionButtons');
+    assertEq(typeof emptyState, 'function', 'emptyState');
+    assertEq(typeof debounce, 'function', 'debounce');
+  });
+
+  test('Settings hat alle erwarteten Defaults', () => {
+    assertType(state.settings, 'object');
+    assert('theme' in state.settings, 'theme fehlt');
+    assert('headerMinimized' in state.settings, 'headerMinimized fehlt');
+    assert('trackerEmail' in state.settings, 'trackerEmail fehlt');
+  });
+});
+
+group('🛠️ Helper-Funktionen', () => {
+  test('esc() escaped HTML-Zeichen', () => {
+    assertEq(esc('<script>'), '&lt;script&gt;');
+    assertEq(esc('"quote"'), '&quot;quote&quot;');
+    assertEq(esc("it's"), 'it&#39;s');
+    assertEq(esc(null), '');
+    assertEq(esc(undefined), '');
+  });
+
+  test('uid() liefert eindeutige IDs', () => {
+    const a = uid(), b = uid();
+    assertType(a, 'string');
+    assert(a !== b, 'IDs nicht eindeutig');
+    assert(a.length > 5, 'ID zu kurz');
+  });
+
+  test('fmtDate() formatiert Datum auf de-DE', () => {
+    assertEq(fmtDate('2025-01-15'), '15.1.2025');
+    assertEq(fmtDate(''), '');
+    assertEq(fmtDate(null), '');
+  });
+
+  test('badge() rendert HTML-Span mit Klasse', () => {
+    const html = badge('Hoch', 'hoch');
+    assert(html.includes('class="badge hoch"'), 'class fehlt');
+    assert(html.includes('Hoch'), 'Text fehlt');
+  });
+
+  test('badge() escaped Text', () => {
+    const html = badge('<x>', 'a');
+    assert(html.includes('&lt;x&gt;'), 'Text nicht escaped');
+  });
+
+  test('actionButtons() rendert Edit+Delete mit data-attributes', () => {
+    const html = actionButtons('abc', {edit:'editTask', del:'deleteTask'});
+    assert(html.includes('data-action="editTask"'), 'edit data-action fehlt');
+    assert(html.includes('data-action="deleteTask"'), 'delete data-action fehlt');
+    assert(html.includes('data-id="abc"'), 'data-id fehlt');
+    assert(html.includes('✏️'), 'Edit-Icon fehlt');
+    assert(html.includes('🗑️'), 'Delete-Icon fehlt');
+    // Sollte KEIN inline onclick mehr enthalten (Event-Delegation)
+    assert(!html.includes('onclick='), 'inline onclick sollte nicht mehr verwendet werden');
+  });
+
+  test('actionButtons() escaped IDs gegen XSS', () => {
+    // <\/script> Backslash ist nötig damit der HTML-Parser dies nicht als Tag-Ende sieht.
+    const evilId = '"><scr' + 'ipt>x<\/scr' + 'ipt>';
+    const html = actionButtons(evilId, {edit:'e', del:'d'});
+    assert(!html.includes('<scr'+'ipt>'), 'XSS-Risiko: script tag im HTML');
+    assert(html.includes('&quot;'), 'Quote nicht escaped');
+  });
+
+  test('initEventDelegation() ist global verfügbar', () => {
+    assertType(window.initEventDelegation, 'function');
+  });
+
+  test('actionButtons() unterstützt extra-Buttons', () => {
+    const html = actionButtons('id', {edit:'e', del:'d', extra:'<button>X</button>'});
+    assert(html.includes('<button>X</button>'), 'extra fehlt');
+  });
+
+  test('emptyState() rendert Card', () => {
+    const html = emptyState('📋', 'Leer');
+    assert(html.includes('class="card empty"'), 'class fehlt');
+    assert(html.includes('📋'), 'Icon fehlt');
+    assert(html.includes('Leer'), 'Message fehlt');
+  });
+});
+
+group('📦 Render-Funktionen existieren', () => {
+  const renderFns = [
+    'renderDashboard','renderProjekte','renderAufgaben','renderFristenkalender',
+    'renderBautagebuch','renderKontakte','renderProtokolle','renderSchaetzung',
+    'renderPruefungen','renderBauzeitplan','renderGruppenKatalog',
+    'renderEinstellungen','renderGenehmigungen','renderDokumentpruefung',
+    'renderWiki','renderTools'
+  ];
+  renderFns.forEach(fn => {
+    test(`${fn}() ist global definiert`, () => {
+      assertType(window[fn], 'function', `${fn} fehlt`);
+    });
+  });
+});
+
+group('📚 Wiki', () => {
+  test('addWikiArticle ist global', () => assertType(window.addWikiArticle, 'function'));
+  test('deleteWikiArticle ist global', () => assertType(window.deleteWikiArticle, 'function'));
+  test('saveWikiField ist global', () => assertType(window.saveWikiField, 'function'));
+  test('pickWikiImage ist global', () => assertType(window.pickWikiImage, 'function'));
+  test('resetWikiFilter ist registriert', () => assertType(window.resetWikiFilter, 'function'));
+  test('state.wikiArticles ist initialisiert', () => {
+    if(!Array.isArray(state.wikiArticles)) throw new Error('wikiArticles ist kein Array');
+  });
+  test('renderWiki() rendert ohne Crash auch ohne Artikel', () => {
+    const html = renderWiki();
+    if(typeof html !== 'string' || html.length < 50) throw new Error('renderWiki gibt kein HTML zurück');
+  });
+  test('renderTools() rendert ohne Crash', () => {
+    const html = renderTools();
+    if(typeof html !== 'string' || html.length < 50) throw new Error('renderTools gibt kein HTML zurück');
+  });
+});
+
+group('🔄 CRUD-Funktionen existieren', () => {
+  const crudFns = [
+    'editTask','saveTask','deleteTask',
+    'editContact','saveContact','deleteContact',
+    'editProject','deleteProject',
+    'editPruefung','savePruefung','deletePruefung',
+    'editScheduleTask','saveScheduleTask','deleteScheduleTask',
+    'editKalenderEntry','saveKalenderEntry','deleteKalenderEntry',
+    'editGenehmigung','saveGenehmigung','deleteGenehmigung',
+  ];
+  crudFns.forEach(fn => {
+    test(`${fn}() ist global definiert`, () => {
+      assertType(window[fn], 'function', `${fn} fehlt`);
+    });
+  });
+});
+
+group('🔁 Reset-Hooks für switchProject', () => {
+  test('switchProject() ist definiert', () => {
+    assertType(window.switchProject, 'function');
+  });
+  test('resetTaskFilter() ist registriert', () => {
+    assertType(window.resetTaskFilter, 'function');
+  });
+  test('resetKalender() ist registriert', () => {
+    assertType(window.resetKalender, 'function');
+  });
+  test('resetGenehmTab() ist registriert', () => {
+    assertType(window.resetGenehmTab, 'function');
+  });
+  test('resetPriceFilter() ist registriert', () => {
+    assertType(window.resetPriceFilter, 'function');
+  });
+  test('resetKontaktFilter() ist registriert', () => {
+    assertType(window.resetKontaktFilter, 'function');
+  });
+});
+
+group('🎯 State-Mutationen (in-memory, kein Save)', () => {
+  test('Task hinzufügen, finden und löschen', () => {
+    const before = state.tasks.length;
+    const id = uid();
+    state.tasks.push({id, title:'Smoke-Test-Task', type:'aufgabe', priority:'hoch', status:'offen', projectId:'__test__', created:new Date().toISOString()});
+    assertEq(state.tasks.length, before+1);
+    const found = state.tasks.find(t=>t.id===id);
+    assert(found, 'Task nicht gefunden');
+    assertEq(found.title, 'Smoke-Test-Task');
+    state.tasks = state.tasks.filter(t=>t.id!==id);
+    assertEq(state.tasks.length, before);
+  });
+
+  test('projAmpel() berechnet vpPct ohne Crash', () => {
+    const proj = {id:'__t__', type:'pv'};
+    const a = projAmpel(proj);
+    assertType(a, 'object');
+    assert('vpPct' in a, 'vpPct fehlt');
+    assert('vpColor' in a, 'vpColor fehlt');
+  });
+
+  test('docCompletionPct() liefert 0 bei leerer Checkliste', () => {
+    assertEq(docCompletionPct({}), 0);
+    assertEq(docCompletionPct({docChecklist:[]}), 0);
+  });
+});
+
+group('📋 BESS-Container (Reporting)', () => {
+  test('getAnlagen() initialisiert leeres Array ohne save', () => {
+    const p = {id:'_t_'};
+    const result = getAnlagen(p);
+    assertArr(result);
+    assertEq(result.length, 0);
+    assert(p.anlagen === result, 'Ergebnis nicht referenz-identisch');
+  });
+
+  test('getMvSkids() initialisiert leeres Array', () => {
+    const p = {id:'_t_'};
+    assertArr(getMvSkids(p));
+  });
+
+  test('getBessAbschnitte() initialisiert mit Defaults', () => {
+    const p = {id:'_t_', type:'bess'};
+    const r = getBessAbschnitte(p);
+    assertArr(r);
+    assert(r.length > 0, 'Sollte Default-Abschnitte enthalten');
+    assert(r[0].key, 'Erstes Element ohne key');
+  });
+});
+
+group('🔐 Validierung (genehmTab)', () => {
+  test('VALID_GENEHM_TABS ist definiert', () => {
+    assert(typeof VALID_GENEHM_TABS !== 'undefined', 'VALID_GENEHM_TABS fehlt');
+    assert(VALID_GENEHM_TABS.includes('anlage'), 'anlage fehlt');
+  });
+
+  test('setGenehmTab() lehnt invalide Werte ab', () => {
+    setGenehmTab('xxx-invalid');
+    // genehmTab sollte auf 'anlage' fallback haben
+    assertEq(sessionStorage.getItem('genehmTab'), 'anlage');
+  });
+});
+
+group('🗑️ Tote Exports check', () => {
+  test('window.editPrice (alter toter Export) ist nicht gesetzt', () => {
+    // Wenn dieser export wieder erscheint, wurde der Cleanup rückgängig gemacht
+    assert(!window.editPrice || typeof window.editPrice === 'undefined',
+      'window.editPrice sollte nicht existieren — alter toter Export!');
+  });
+
+  test('window.selectBackupDir (alter toter Export) ist nicht gesetzt', () => {
+    assert(!window.selectBackupDir || typeof window.selectBackupDir === 'undefined',
+      'window.selectBackupDir sollte nicht existieren');
+  });
+});
+</script>
+
+<!-- Wir laden die App-Module hier — types.js zuerst -->
+<script src="../modules/types.js"></script>
+<script src="../modules/shared.js"></script>
+<script src="../modules/dashboard.js"></script>
+<script src="../modules/projekte.js"></script>
+<script src="../modules/aufgaben.js"></script>
+<script src="../modules/fristenkalender.js"></script>
+<script src="../modules/bautagebuch.js"></script>
+<script src="../modules/kontakte.js"></script>
+<script src="../modules/reporting.js"></script>
+<script src="../modules/kostenschaetzung.js"></script>
+<script src="../modules/bauzeitplan.js"></script>
+<script src="../modules/gruppenkatalog.js"></script>
+<script src="../modules/pruefungen.js"></script>
+<script src="../modules/genehmigungen.js"></script>
+<script src="../modules/einstellungen.js"></script>
+<script src="../modules/wiki.js"></script>
+<script src="../modules/tools.js"></script>
+
+<script>
+// IndexedDB stubben NACH Modul-Load, damit Saves nicht in echter DB landen
+(function stubDbAfterLoad(){
+  const stubDB = {};
+  window.dbGet = key => Promise.resolve(stubDB[key]);
+  window.dbSet = (key, val) => { stubDB[key] = val; return Promise.resolve(); };
+  // localStorage save() überschreiben damit Tests nicht echte App-Daten überschreiben
+  const origSave = window.save;
+  window.save = (key) => {
+    // No-op statt echtem Speichern — alle Test-Mutationen bleiben in-memory
+    return Promise.resolve();
+  };
+  window._stubbedDB = true;
+})();
+
+// Auto-run nach Modul-Load
+window.addEventListener('load', () => {
+  setTimeout(runAll, 100);
+});
+</script>
+</body>
+</html>

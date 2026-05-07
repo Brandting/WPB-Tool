@@ -42,20 +42,17 @@ function renderAufgaben(){
         <option value="niedrig" ${taskFilter.priority==='niedrig'?'selected':''}>Niedrig</option>
       </select>
     </div>
-    ${tasks.length === 0 ? '<div class="card empty"><span class="empty-icon">✅</span>Keine Aufgaben vorhanden</div>' :
+    ${tasks.length === 0 ? emptyState('✅','Keine Aufgaben vorhanden') :
     `<table><thead><tr><th>Titel</th><th>Typ</th><th>Gewerk</th><th>Priorität</th><th>Status</th><th>Frist</th><th>Foto</th><th></th></tr></thead><tbody>
     ${tasks.map(t=>`<tr>
       <td><strong>${esc(t.title)}</strong>${t.location?`<br><small style="color:var(--muted)">📍 ${esc(t.location)}</small>`:''}</td>
-      <td><span class="badge ${t.type}">${t.type==='mangel'?'Mangel':'Aufgabe'}</span></td>
+      <td>${badge(t.type==='mangel'?'Mangel':'Aufgabe',t.type)}</td>
       <td>${esc(t.trade||'-')}</td>
-      <td><span class="badge ${t.priority}">${t.priority}</span></td>
-      <td><span class="badge ${t.status}">${t.status}</span></td>
+      <td>${badge(t.priority,t.priority)}</td>
+      <td>${badge(t.status,t.status)}</td>
       <td>${fmtDate(t.due)}</td>
       <td>${t.photo?`<img src="${t.photo}" class="photo-thumb">`:'—'}</td>
-      <td class="actions-cell">
-        <button class="btn btn-sm btn-secondary" onclick="editTask('${t.id}')">✏️</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteTask('${t.id}')">🗑️</button>
-      </td>
+      <td class="actions-cell">${actionButtons(t.id,{edit:'editTask',del:'deleteTask'})}</td>
     </tr>`).join('')}
     </tbody></table>`}
   `;
@@ -157,7 +154,8 @@ async function saveTask(e,id,exists){
   render();
 }
 async function deleteTask(id){
-  if(!confirm('Aufgabe wirklich löschen?')) return;
+  const t=state.tasks.find(x=>x.id===id);
+  if(!confirm(`Aufgabe „${t?.title||'?'}" wirklich löschen?`)) return;
   state.tasks = state.tasks.filter(t=>t.id!==id);
   await save('tasks');
   render();
@@ -171,3 +169,4 @@ window.editTask = editTask;
 window.handlePhoto = handlePhoto;
 window.saveTask = saveTask;
 window.deleteTask = deleteTask;
+window.resetTaskFilter = function(){ taskFilter = {status:'',type:'',priority:''}; };

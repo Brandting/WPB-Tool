@@ -36,7 +36,7 @@ function renderDashboard(){
       ${state.projects.length===0
         ? `<div class="empty"><span class="empty-icon">📁</span>Noch kein Projekt angelegt. Klicke auf <strong>+ Neues Projekt</strong>.</div>`
         : `<table><thead><tr>
-            <th>Projekt</th><th>Status</th><th>Vollständigkeit</th><th>Dokumente</th><th style="text-align:center">Bauzeit</th><th>Max. Schätzung</th><th></th>
+            <th>Projekt</th><th>Status</th><th>Vollständigkeit</th><th>Vorprüfung</th><th style="text-align:center">Bauzeit</th><th>Max. Schätzung</th><th></th>
           </tr></thead><tbody>
           ${state.projects.map(p=>{
             const a=projAmpel(p);
@@ -46,20 +46,22 @@ function renderDashboard(){
                 ${p.address?`<br><small style="color:var(--muted)">📍 ${esc(p.address)}</small>`:''}
                 ${p.type?`<br><small style="color:var(--muted)">${esc(EST_TEMPLATES[p.type]?.label||p.type)}</small>`:''}
               </td>
-              <td><span class="badge ${p.status||'bearbeitung'}">${p.status||'aktiv'}</span></td>
+              <td>${badge(p.status||'aktiv',p.status||'bearbeitung')}</td>
               <td style="min-width:180px;line-height:1.9">${completionDots(p)}</td>
               <td>
-                <div style="display:flex;align-items:center;gap:6px">
-                  <div style="flex:1;height:8px;background:var(--border);border-radius:4px;min-width:50px">
-                    <div style="height:100%;width:${a.docPct}%;background:${a.docColor};border-radius:4px;transition:.3s"></div>
-                  </div>
-                  <span style="font-size:12px;color:${a.docColor};font-weight:600">${a.docPct}%</span>
-                </div>
+                ${a.vpPct===null
+                  ? `<span style="font-size:12px;color:var(--muted)">—</span>`
+                  : `<div style="display:flex;align-items:center;gap:6px">
+                      <div style="flex:1;height:8px;background:var(--border);border-radius:4px;min-width:50px">
+                        <div style="height:100%;width:${a.vpPct}%;background:${a.vpColor};border-radius:4px;transition:.3s"></div>
+                      </div>
+                      <span style="font-size:12px;color:${a.vpColor};font-weight:600">${a.vpPct}%</span>
+                    </div>`}
               </td>
               <td style="text-align:center;font-weight:600;color:${a.zeitColor}">${a.zeitLabel}</td>
               <td style="color:var(--primary);font-weight:600">${a.budget}</td>
               <td class="actions-cell">
-                <button class="btn btn-sm btn-secondary" onclick="state.currentProject='${p.id}';save('currentProject');currentProjectDetailId='${p.id}';showView('projektdetail')" title="Projektdaten">📋</button>
+                <button class="btn btn-sm btn-secondary" onclick="switchProject('${p.id}');currentProjectDetailId='${p.id}';showView('projektdetail')" title="Projektdaten">📋</button>
                 <button class="btn btn-sm btn-secondary" onclick="editProject('${p.id}')" title="Bearbeiten">✏️</button>
                 <button class="btn btn-sm btn-danger" onclick="deleteProject('${p.id}')" title="Löschen">🗑️</button>
               </td>
@@ -111,9 +113,9 @@ function renderDashboard(){
       `<table><thead><tr><th>Titel</th><th>Typ</th><th>Priorität</th><th>Status</th><th>Frist</th></tr></thead><tbody>
       ${recent.map(t=>`<tr>
         <td>${esc(t.title)}</td>
-        <td><span class="badge ${t.type}">${t.type==='mangel'?'Mangel':'Aufgabe'}</span></td>
-        <td><span class="badge ${t.priority}">${t.priority}</span></td>
-        <td><span class="badge ${t.status}">${t.status}</span></td>
+        <td>${badge(t.type==='mangel'?'Mangel':'Aufgabe',t.type)}</td>
+        <td>${badge(t.priority,t.priority)}</td>
+        <td>${badge(t.status,t.status)}</td>
         <td>${fmtDate(t.due)}</td>
       </tr>`).join('')}
       </tbody></table>`}

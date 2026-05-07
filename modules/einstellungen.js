@@ -268,6 +268,51 @@ function renderEinstellungen(){
       <input type="file" id="importField" accept=".json" style="display:none" onchange="mergeFieldImport(event)">
     </div>
 
+    <div class="card" style="margin-bottom:20px">
+      <h3 style="color:var(--primary);margin-bottom:6px;font-size:18px">📁 Projekt Tracker – Speicherordner</h3>
+      <p style="color:var(--muted);font-size:13px;margin-bottom:14px">
+        Wähle einen Standardordner für den PDF-Export. Das PDF wird dann direkt dort gespeichert — ohne Speicherdialog.
+      </p>
+      ${state.settings.trackerSaveDirName
+        ? `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;padding:10px 14px;background:var(--surface-2);border-radius:8px;border:1px solid var(--border)">
+            <span style="font-size:18px">📂</span>
+            <strong style="font-size:14px;color:var(--text)">${esc(state.settings.trackerSaveDirName)}</strong>
+            <span style="font-size:12px;color:var(--green);margin-left:auto">✓ Ordner gewählt</span>
+           </div>
+           <div style="display:flex;gap:8px;flex-wrap:wrap">
+             <button class="btn btn-secondary" onclick="pickTrackerSaveDir()">📁 Anderen Ordner wählen</button>
+             <button class="btn btn-danger" onclick="clearTrackerSaveDir()">✗ Entfernen</button>
+           </div>`
+        : `<button class="btn btn-secondary" onclick="pickTrackerSaveDir()">📁 Ordner wählen</button>
+           <span style="font-size:12px;color:var(--muted);margin-left:12px">Ohne Auswahl → Download-Ordner</span>`
+      }
+    </div>
+
+    <div class="card" style="margin-bottom:20px">
+      <h3 style="color:var(--primary);margin-bottom:6px;font-size:18px">📋 Projekt Tracker – E-Mail</h3>
+      <p style="color:var(--muted);font-size:13px;margin-bottom:14px">
+        Empfänger und Inhalt der E-Mail, die beim Klick auf „Als PDF senden" im Projekt Tracker geöffnet wird.
+      </p>
+      <div class="form-group">
+        <label>Empfänger E-Mail-Adresse</label>
+        <input type="email" value="${esc(state.settings.trackerEmail||'')}"
+          placeholder="vorgesetzter@firma.de"
+          onchange="saveTrackerEmailSetting('trackerEmail',this.value)">
+      </div>
+      <div class="form-group">
+        <label>Betreff</label>
+        <input type="text" value="${esc(state.settings.trackerEmailSubject||'')}"
+          placeholder="Projekt Tracker – Stand [Datum]"
+          onchange="saveTrackerEmailSetting('trackerEmailSubject',this.value)">
+      </div>
+      <div class="form-group">
+        <label>E-Mail-Text</label>
+        <textarea style="min-height:80px"
+          placeholder="Hallo,&#10;&#10;im Anhang findest du den aktuellen Projekt Tracker als PDF.&#10;&#10;Viele Grüße"
+          onchange="saveTrackerEmailSetting('trackerEmailBody',this.value)">${esc(state.settings.trackerEmailBody||'')}</textarea>
+      </div>
+    </div>
+
     <div class="card">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
         <h3 style="color:var(--primary);margin-bottom:6px;font-size:18px">ℹ️ Über</h3>
@@ -295,6 +340,34 @@ function applyHeaderMin(){
 async function toggleHeaderMin(){
   state.settings.headerMinimized = !state.settings.headerMinimized;
   applyHeaderMin();
+  await save('settings');
+  render();
+}
+
+async function saveTrackerEmailSetting(field, value){
+  state.settings[field] = value;
+  await save('settings');
+}
+
+async function pickTrackerSaveDir(){
+  if(!window.showDirectoryPicker){
+    alert('Dein Browser unterstützt diese Funktion nicht (Chrome/Edge erforderlich).');
+    return;
+  }
+  try{
+    const handle = await window.showDirectoryPicker({ mode:'readwrite' });
+    await dbSet('tracker-save-dir', handle);
+    state.settings.trackerSaveDirName = handle.name;
+    await save('settings');
+    render();
+  }catch(e){
+    if(e.name !== 'AbortError') console.error('pickTrackerSaveDir:', e);
+  }
+}
+
+async function clearTrackerSaveDir(){
+  await dbSet('tracker-save-dir', undefined);
+  state.settings.trackerSaveDirName = '';
   await save('settings');
   render();
 }
@@ -413,7 +486,7 @@ async function executeMerge(){}
 
 function exportData(){
   const dump = {};
-  ['projects','contacts','tasks','diary','protocols','priceItems','calculations','estimates','schaetzungVorlagen','schaetzungGruppenVorlagen','pruefungen','schedule','kalenderEntries','settings','hilfeNotes','genehmigungen','querungen','nutzungsvertraege','genehmVorpruefung'].forEach(k=>dump[k]=state[k]);
+  ['projects','contacts','tasks','diary','protocols','priceItems','calculations','estimates','schaetzungVorlagen','schaetzungGruppenVorlagen','pruefungen','schedule','kalenderEntries','settings','hilfeNotes','genehmigungen','querungen','nutzungsvertraege','genehmVorpruefung','projektTracker','trackerGroups','estTemplates','bfbReports','wikiArticles'].forEach(k=>dump[k]=state[k]);
   dump._exported = new Date().toISOString();
   dump._version = 1;
   const blob = new Blob([JSON.stringify(dump,null,2)],{type:'application/json'});
@@ -430,7 +503,7 @@ function importData(e){
   reader.onload = async ev => {
     try{
       const dump = JSON.parse(ev.target.result);
-      for(const k of ['projects','contacts','tasks','diary','protocols','priceItems','calculations','estimates','schaetzungVorlagen','schaetzungGruppenVorlagen','pruefungen','schedule','kalenderEntries','settings','hilfeNotes','genehmigungen','querungen','nutzungsvertraege','genehmVorpruefung']){
+      for(const k of ['projects','contacts','tasks','diary','protocols','priceItems','calculations','estimates','schaetzungVorlagen','schaetzungGruppenVorlagen','pruefungen','schedule','kalenderEntries','settings','hilfeNotes','genehmigungen','querungen','nutzungsvertraege','genehmVorpruefung','projektTracker','trackerGroups','estTemplates','bfbReports','wikiArticles']){
         if(dump[k]!==undefined){
           state[k] = dump[k];
           await save(k);
@@ -450,12 +523,31 @@ function importData(e){
 async function resetAllData(){
   if(!confirm('WIRKLICH alle Daten unwiderruflich löschen? Das kann nicht rückgängig gemacht werden!')) return;
   if(!confirm('Letzte Warnung: Alle Projekte, Aufgaben, Preise und Bauzeitpläne werden gelöscht. Fortfahren?')) return;
-  for(const k of ['projects','contacts','tasks','diary','protocols','priceItems','calculations','estimates','pruefungen','schedule','kalenderEntries']){
+  for(const k of ['projects','contacts','tasks','diary','protocols','priceItems','calculations','estimates','pruefungen','schedule','kalenderEntries','genehmigungen','querungen','nutzungsvertraege','genehmVorpruefung','projektTracker','trackerGroups','bfbReports','wikiArticles']){
     state[k] = [];
     await save(k);
   }
-  state.currentProject = null;
-  await save('currentProject');
+  state.estTemplates = null;
+  await save('estTemplates');
+  switchProject(null);
+  // Tracker-Speicherordner aus IndexedDB entfernen
+  try{ await dbSet('tracker-save-dir', undefined); }catch(_){}
+  // Wiki- und BFB-Bilder aus IndexedDB ausräumen
+  try{
+    const db = await openDB();
+    const tx = db.transaction(DB_STORE,'readwrite');
+    const store = tx.objectStore(DB_STORE);
+    const keys = await new Promise((res,rej)=>{
+      const r = store.getAllKeys(); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);
+    });
+    for(const k of keys){
+      if(typeof k === 'string' && (k.startsWith('wiki_img_') || k.startsWith('bfb_img_'))) store.delete(k);
+    }
+  }catch(_){}
+  // Settings auf Defaults zurücksetzen (Theme bleibt erhalten)
+  const theme = state.settings?.theme || 'enercity';
+  state.settings = { theme, headerMinimized:false, vpHidden:false, trackerEmail:'', trackerEmailSubject:'Projekt Tracker Report', trackerEmailBody:'', trackerSaveDirName:'', backupDirName:'', backupInterval:30, lastBackup:null, kalTypeColors:{} };
+  await save('settings');
   render();
 }
 
@@ -622,12 +714,7 @@ window.saveKalTypeColor = saveKalTypeColor;
 window.resetKalTypeColors = resetKalTypeColors;
 window.renderHilfe = renderHilfe;
 window.saveHilfeNotes = saveHilfeNotes;
-window.exportData = exportData;
-window.importData = importData;
+// function declarations sind durch Hoisting bereits global verfügbar.
+// Hier nur Aliases für bestehende API-Namen aus dem HTML-Markup.
 window.clearAllData = resetAllData;
 window.requestBackupPermission = requestNotificationPermission;
-window.selectBackupDir = selectBackupDir;
-window.runAutoBackup = runAutoBackup;
-window.offerRestoreIfEmpty = offerRestoreIfEmpty;
-window.scheduleAutoBackup = scheduleAutoBackup;
-window.setBackupInterval = setBackupInterval;

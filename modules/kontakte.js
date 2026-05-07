@@ -77,11 +77,11 @@ function renderKontakte(){
         <td>${esc(c.contact||'')}</td>
         <td>${c.phone?`<a href="tel:${esc(c.phone)}" style="color:var(--text);text-decoration:none">${esc(c.phone)}</a>`:''}</td>
         <td>${c.email?`<a href="mailto:${esc(c.email)}" style="color:var(--primary);text-decoration:none">${esc(c.email)}</a>`:''}</td>
-        <td class="actions-cell">
-          <button class="btn btn-sm btn-secondary" onclick="openOutlookMailSingle('${c.id}')" title="E-Mail schreiben" ${!c.email?'disabled':''}>📧</button>
-          <button class="btn btn-sm btn-secondary" onclick="editContact('${c.id}')">✏️</button>
-          <button class="btn btn-sm btn-danger" onclick="deleteContact('${c.id}')">🗑️</button>
-        </td>
+        <td class="actions-cell">${actionButtons(c.id,{
+          edit:'editContact',
+          del:'deleteContact',
+          extra:`<button class="btn btn-sm btn-secondary" onclick="openOutlookMailSingle('${c.id}')" title="E-Mail schreiben" ${!c.email?'disabled':''}>📧</button>`
+        })}</td>
       </tr>`).join('')}
       </tbody>
     </table>`}
@@ -159,9 +159,9 @@ async function saveContact(e,id,exists){
 }
 
 async function deleteContact(id){
-  if(!confirm('Kontakt wirklich löschen?')) return;
+  const c=state.contacts.find(x=>x.id===id);
+  if(!confirm(`Kontakt „${c?.name||'?'}" wirklich löschen?`)) return;
   state.contacts=state.contacts.filter(c=>c.id!==id);
-  kontaktSelection.delete(id);
   await save('contacts'); render();
 }
 
@@ -215,3 +215,4 @@ window.deleteContact = deleteContact;
 window.toggleKontaktTag = toggleKontaktTag;
 window.openOutlookMailSingle = openOutlookMailSingle;
 window.sendOutlookMail = sendOutlookMail;
+window.resetKontaktFilter = function(){ kontaktFilter = {search:'', tags:[]}; };

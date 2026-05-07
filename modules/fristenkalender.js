@@ -100,9 +100,9 @@ function renderFristenkalender(){
               <div style="flex:1;min-width:0">
                 <div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</div>
                 <div style="display:flex;gap:5px;margin-top:4px;flex-wrap:wrap">
-                  <span class="badge ${t.type}" style="font-size:10px">${t.type==='mangel'?'Mangel':'Aufgabe'}</span>
-                  <span class="badge ${t.status}" style="font-size:10px">${t.status}</span>
-                  <span class="badge ${t.priority}" style="font-size:10px">${t.priority}</span>
+                  ${badge(t.type==='mangel'?'Mangel':'Aufgabe',t.type,'font-size:10px')}
+                  ${badge(t.status,t.status,'font-size:10px')}
+                  ${badge(t.priority,t.priority,'font-size:10px')}
                   ${t.due?`<span style="font-size:10px;color:var(--muted)">📅 ${fmtDate(t.due)}</span>`:''}
                 </div>
               </div>
@@ -269,7 +269,8 @@ async function saveKalenderEntry(ev, id, exists){
 }
 
 async function deleteKalenderEntry(id){
-  if(!confirm('Eintrag wirklich löschen?')) return;
+  const e=state.kalenderEntries.find(x=>x.id===id);
+  if(!confirm(`Termin „${e?.title||'?'}" wirklich löschen?`)) return;
   state.kalenderEntries=state.kalenderEntries.filter(e=>e.id!==id);
   await save('kalenderEntries');
   closeModal();
@@ -326,6 +327,7 @@ function openDayDetail(dateStr){
 // Exports
 window.renderFristenkalender = renderFristenkalender;
 window.kalProjFilter = kalProjFilter;
+window.resetKalender = function(){ const n=new Date(); kalMonth=n.getMonth(); kalYear=n.getFullYear(); };
 window.kalPrevMonth = kalPrevMonth;
 window.kalNextMonth = kalNextMonth;
 window.openDayDetail = openDayDetail;

@@ -350,8 +350,8 @@ function printBegehung(id){
   const erkenntnisse = b.erkenntnisse||[];
 
   // ---- Hilfsfunktionen ----
-  const esc2 = s=>String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const fmtD = d=>d?new Date(d).toLocaleDateString('de-DE'):'';
+  const esc2 = esc;
+  const fmtD = fmtDate;
   const typColor = t=>t==='Mangel'?'#dc2626':t==='Info'?'#2563eb':'#d97706';
   const typBg   = t=>t==='Mangel'?'#fee2e2':t==='Info'?'#dbeafe':'#fef9c3';
 
@@ -531,7 +531,8 @@ async function saveDiary(e,id,exists){
   render();
 }
 async function deleteDiary(id){
-  if(!confirm('Eintrag wirklich löschen?')) return;
+  const d=state.diary.find(x=>x.id===id);
+  if(!confirm(`Begehung vom ${d?.date?fmtDate(d.date):'?'} wirklich löschen?`)) return;
   state.diary = state.diary.filter(d=>d.id!==id);
   await save('diary');
   render();

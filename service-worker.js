@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bauleiter-v3';
+const CACHE_NAME = 'bauleiter-v7';
 const urlsToCache = [
   './',
   './index.html',
@@ -12,10 +12,13 @@ const urlsToCache = [
   './modules/reporting.js',
   './modules/kostenschaetzung.js',
   './modules/pruefungen.js',
-  './modules/einstellungen.js'
+  './modules/einstellungen.js',
+  './modules/wiki.js',
+  './modules/tools.js'
 ];
 
 self.addEventListener('install', event => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => cache.addAll(urlsToCache))
@@ -36,14 +39,11 @@ self.addEventListener('fetch', event => {
 
 self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then(cacheNames => {
-      return Promise.all(
-        cacheNames.map(cacheName => {
-          if (cacheName !== CACHE_NAME) {
-            return caches.delete(cacheName);
-          }
-        })
-      );
-    })
+    Promise.all([
+      caches.keys().then(cacheNames =>
+        Promise.all(cacheNames.map(c => c !== CACHE_NAME ? caches.delete(c) : null))
+      ),
+      self.clients.claim()
+    ])
   );
 });
